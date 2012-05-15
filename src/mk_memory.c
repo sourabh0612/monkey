@@ -50,16 +50,14 @@ void *mk_mem_malloc(const size_t size)
 inline ALLOCSZ_ATTR(1)
 void *mk_mem_malloc_z(const size_t size)
 {
-    void *buf = mk_mem_malloc(size);
+    void *buf = calloc(1, size);
     if (!buf)
         return NULL;
-
-    memset(buf, '\0', size);
 
     return buf;
 }
 
-inline ALLOCSZ_ATTR(1,2)
+inline ALLOCSZ_ATTR(2)
 void *mk_mem_realloc(void *ptr, const size_t size)
 {
     void *aux = realloc(ptr, size);
@@ -173,7 +171,6 @@ void mk_mem_pointers_init()
     mk_pointer_set(&mk_header_te_chunked, MK_HEADER_TE_CHUNKED);
     mk_pointer_set(&mk_header_last_modified, MK_HEADER_LAST_MODIFIED);
 
-    mk_http_status_list_init();
     mk_iov_separators_init();
 
     /* Server */

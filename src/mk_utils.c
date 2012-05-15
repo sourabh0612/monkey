@@ -50,9 +50,40 @@
 #include "mk_macros.h"
 
 /* Date helpers */
-static const char *mk_date_wd[7]  = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-static const char *mk_date_ym[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul",
-                                     "Aug", "Sep", "Oct", "Nov", "Dec"};
+static const char *mk_date_wd[7]  = {"Sun, ", "Mon, ", "Tue, ", "Wed, ", "Thu, ", "Fri, ", "Sat, "};
+static const char *mk_date_ym[12] = {"Jan ", "Feb ", "Mar ", "Apr ", "May ", "Jun ", "Jul ",
+                                     "Aug ", "Sep ", "Oct ", "Nov ", "Dec "};
+
+static int mk_utils_gmt_cache_get(char **data, time_t date)
+{
+    unsigned int i;
+    struct mk_gmt_cache *gcache = mk_cache_get(mk_cache_utils_gmt_text);
+
+    for (i = 0; i < MK_GMT_CACHES; i++) {
+        if (date == gcache[i].time) {
+            memcpy(*data, gcache[i].text, 32);
+            gcache[i].hits++;
+            return MK_TRUE;
+        }
+    }
+
+    return MK_FALSE;
+}
+
+static void mk_utils_gmt_cache_add(char *data, time_t time)
+{
+    unsigned int i, min = 0;
+    struct mk_gmt_cache *gcache = mk_cache_get(mk_cache_utils_gmt_text);
+
+    for (i = 1; i < MK_GMT_CACHES; i++) {
+        if (gcache[i].hits < gcache[min].hits)
+            min = i;
+    }
+
+    gcache[min].hits = 1;
+    gcache[min].time = time;
+    memcpy(gcache[min].text, data, 32);
+}
 
 /*
  *This function given a unix time, set in a mk_pointer
@@ -64,7 +95,7 @@ static const char *mk_date_ym[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "
  */
 int mk_utils_utime2gmt(char **data, time_t date)
 {
-    int size = 31;
+    const int size = 31;
     unsigned int year;
     char *buf=0;
     struct tm *gtm;
@@ -73,6 +104,11 @@ int mk_utils_utime2gmt(char **data, time_t date)
         if ((date = time(NULL)) == -1) {
             return -1;
         }
+    }
+
+    /* Maybe it's converted already? */
+    if (mk_utils_gmt_cache_get(data, date) == MK_TRUE) {
+        return size;
     }
 
     /* Convert unix time to struct tm */
@@ -92,22 +128,17 @@ int mk_utils_utime2gmt(char **data, time_t date)
     buf = *data;
 
     /* Week day */
-    *buf++ = mk_date_wd[gtm->tm_wday][0];
-    *buf++ = mk_date_wd[gtm->tm_wday][1];
-    *buf++ = mk_date_wd[gtm->tm_wday][2];
-    *buf++ = ',';
-    *buf++ = ' ';
+    memcpy(buf, mk_date_wd[gtm->tm_wday], 5);
+    buf += 5;
 
     /* Day of the month */
     *buf++ = ('0' + (gtm->tm_mday / 10));
     *buf++ = ('0' + (gtm->tm_mday % 10));
     *buf++ = ' ';
 
-    /* Year month */
-    *buf++ = mk_date_ym[gtm->tm_mon][0];
-    *buf++ = mk_date_ym[gtm->tm_mon][1];
-    *buf++ = mk_date_ym[gtm->tm_mon][2];
-    *buf++ = ' ';
+    /* Month */
+    memcpy(buf, mk_date_ym[gtm->tm_mon], 4);
+    buf += 4;
 
     /* Year */
     *buf++ = ('0' + (year / 1000) % 10);
@@ -129,15 +160,12 @@ int mk_utils_utime2gmt(char **data, time_t date)
     /* Seconds */
     *buf++ = ('0' + (gtm->tm_sec / 10));
     *buf++ = ('0' + (gtm->tm_sec % 10));
-    *buf++ = ' ';
 
     /* GMT Time zone + CRLF */
-    *buf++ = 'G';
-    *buf++ = 'M';
-    *buf++ = 'T';
-    *buf++ = '\r';
-    *buf++ = '\n';
-    *buf++ = '\0';
+    memcpy(buf, " GMT\r\n\0", 7);
+
+    /* Add new entry to the cache */
+    mk_utils_gmt_cache_add(*data, date);
 
     /* Set mk_pointer data len */
     return size;
