@@ -1,25 +1,15 @@
-/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-
 /*
  * Base64 encoding/decoding (RFC1341)
- * Copyright (c) 2005, Jouni Malinen <jkmaline@cc.hut.fi>
+ * Copyright (c) 2005-2011, Jouni Malinen <j@w1.fi>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * Alternatively, this software may be distributed under the terms of BSD
- * license.
- *
- * See README and COPYING for more details.
+ * This software may be distributed under the terms of the BSD license.
+ * See README for more details.
  */
 
 #include <stdlib.h>
 #include <string.h>
 
-#include "base64.h"
-
-static const unsigned char base64_table[64] =
+static const unsigned char base64_table[65] =
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /**
@@ -45,6 +35,8 @@ unsigned char * base64_encode(const unsigned char *src, size_t len,
 	olen = len * 4 / 3 + 4; /* 3-byte blocks to 4-byte */
 	olen += olen / 72; /* line feeds */
 	olen++; /* nul termination */
+	if (olen < len)
+		return NULL; /* integer overflow */
 	out = malloc(olen);
 	if (out == NULL)
 		return NULL;
@@ -86,10 +78,9 @@ unsigned char * base64_encode(const unsigned char *src, size_t len,
 	*pos = '\0';
 	if (out_len)
 		*out_len = pos - out;
-
-    out[*out_len - 1] = '\0';
 	return out;
 }
+
 
 /**
  * base64_decode - Base64 decode
@@ -101,55 +92,62 @@ unsigned char * base64_encode(const unsigned char *src, size_t len,
  *
  * Caller is responsible for freeing the returned buffer.
  */
-unsigned char *base64_decode(const unsigned char *src, size_t len,
-                              size_t *out_len)
+unsigned char * base64_decode(const unsigned char *src, size_t len,
+			      size_t *out_len)
 {
-    unsigned char dtable[256], *out, *pos, in[4], block[4], tmp;
-    size_t i, count, olen;
+	unsigned char dtable[256], *out, *pos, block[4], tmp;
+	size_t i, count, olen;
+	int pad = 0;
 
-    memset(dtable, 0x80, 256);
-    for (i = 0; i < sizeof(base64_table); i++)
-        dtable[base64_table[i]] = i;
-    dtable['='] = 0;
+	memset(dtable, 0x80, 256);
+	for (i = 0; i < sizeof(base64_table) - 1; i++)
+		dtable[base64_table[i]] = (unsigned char) i;
+	dtable['='] = 0;
 
-    count = 0;
-    for (i = 0; i < len; i++) {
-        if (dtable[src[i]] != 0x80)
-            count++;
-    }
+	count = 0;
+	for (i = 0; i < len; i++) {
+		if (dtable[src[i]] != 0x80)
+			count++;
+	}
 
-    if (count % 4)
-        return NULL;
+	if (count == 0 || count % 4)
+		return NULL;
 
-    olen = count / 4 * 3;
-    pos = out = malloc(count);
-    if (out == NULL)
-        return NULL;
+	olen = count / 4 * 3;
+	pos = out = malloc(olen);
+	if (out == NULL)
+		return NULL;
 
-    count = 0;
-    for (i = 0; i < len; i++) {
-        tmp = dtable[src[i]];
-        if (tmp == 0x80)
-            continue;
+	count = 0;
+	for (i = 0; i < len; i++) {
+		tmp = dtable[src[i]];
+		if (tmp == 0x80)
+			continue;
 
-        in[count] = src[i];
-        block[count] = tmp;
-        count++;
-        if (count == 4) {
-            *pos++ = (block[0] << 2) | (block[1] >> 4);
-            *pos++ = (block[1] << 4) | (block[2] >> 2);
-            *pos++ = (block[2] << 6) | block[3];
-            count = 0;
-        }
-    }
+		if (src[i] == '=')
+			pad++;
+		block[count] = tmp;
+		count++;
+		if (count == 4) {
+			*pos++ = (block[0] << 2) | (block[1] >> 4);
+			*pos++ = (block[1] << 4) | (block[2] >> 2);
+			*pos++ = (block[2] << 6) | block[3];
+			count = 0;
+			if (pad) {
+				if (pad == 1)
+					pos--;
+				else if (pad == 2)
+					pos -= 2;
+				else {
+					/* Invalid padding */
+					free(out);
+					return NULL;
+				}
+				break;
+			}
+		}
+	}
 
-    if (pos > out) {
-        if (in[2] == '=')
-            pos -= 2;
-        else if (in[3] == '=')
-            pos--;
-    }
-
-    *out_len = pos - out;
-    return out;
+	*out_len = pos - out;
+	return out;
 }

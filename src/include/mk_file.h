@@ -26,12 +26,16 @@ struct file_info
 {
     off_t size;
 
+    short int exists;
     short int is_file;
     short int is_link;
     short int is_directory;
     short int exec_access;
     short int read_access;
     time_t last_modification;
+
+    /* Suggest flags to open this file */
+    int flags_read_only;
 };
 
 int mk_file_get_info(const char *path, struct file_info *f_info);

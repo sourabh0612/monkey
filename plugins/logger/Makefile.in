@@ -1,4 +1,6 @@
-CC 	= $CC
+_PATH   = $(patsubst $(monkey_root)/%, %, $(CURDIR))
+CC	= @echo "  CC   $(_PATH)/$@"; $CC
+CC_QUIET= @echo -n; $CC
 CFLAGS	= $CFLAGS
 LDFLAGS = $LDFLAGS
 DEFS    = $DEFS
@@ -7,11 +9,14 @@ LOGGER_OBJECTS = pointers.o logger.o
 
 all: monkey-logger.so
 
+-include $(LOGGER_OBJECTS:.o=.d)
+
 monkey-logger.so: $(LOGGER_OBJECTS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(DEFS) -shared -o $@ $^ -lc
 
 .c.o:
 	$(CC) $(CFLAGS) $(LDFLAGS) $(DEFS) -I$(INCDIR) -fPIC -c $<
+	$(CC_QUIET) -MM -MP $(CFLAGS) $(DEFS) $(LDFLAGS) -I$(INCDIR) $*.c -o $*.d > /dev/null &2>&1
 clean:
-	rm -rf *.o *~
+	rm -rf *.[od] *~
 	rm -rf *.*so*

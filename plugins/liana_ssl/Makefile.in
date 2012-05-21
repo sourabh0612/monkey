@@ -1,4 +1,6 @@
-CC 	= $CC
+_PATH   = $(patsubst $(monkey_root)/%, %, $(CURDIR))
+CC	= @echo "  CC   $(_PATH)/$@"; $CC
+CC_QUIET= @echo -n; $CC
 CFLAGS	= $CFLAGS
 LDFLAGS = $LDFLAGS
 DEFS    = $DEFS -DPOSIX
@@ -8,11 +10,14 @@ MATRIX_HEADERS = /usr/include/matrixssl/
 
 all: monkey-liana_ssl.so
 
+-include $(OBJECTS:.o=.d)
+
 monkey-liana_ssl.so: $(OBJECTS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(DEFS) -shared -o $@ $^ -lmatrixssl
 
 .c.o:
 	$(CC) $(CFLAGS) $(LDFLAGS) $(DEFS) $(INCDIR) -I$(MATRIX_HEADERS) -fPIC -c $<
+	$(CC_QUIET) -MM -MP $(CFLAGS) $(DEFS) $(LDFLAGS) $(INCDIR) $*.c -o $*.d > /dev/null &2>&1
 
 clean:
-	rm -rf *.o *.*~ *.*so*
+	rm -rf *.[od] *.*~ *.*so*

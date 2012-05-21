@@ -61,46 +61,18 @@
 /* Create a memory allocation in order to handle the request data */
 static void mk_request_init(struct session_request *request)
 {
-    request->status = MK_FALSE;  /* Request not processed yet */
-    request->close_now = MK_FALSE;
+    memset(request, 0, sizeof(struct session_request));
 
-    mk_pointer_reset(&request->body);
     request->status = MK_TRUE;
     request->method = HTTP_METHOD_UNKNOWN;
 
-    mk_pointer_reset(&request->uri);
-    request->uri_processed.data = NULL;
-
-    request->content_length = 0;
-    request->content_type.data = NULL;
-    request->connection.data = NULL;
-    request->host.data = NULL;
-    request->if_modified_since.data = NULL;
-    request->last_modified_since.data = NULL;
-    request->range.data = NULL;
-
-    request->data.data = NULL;
-    mk_pointer_reset(&request->query_string);
-
     request->file_info.size = -1;
-    request->virtual_user = NULL;
-    request->keep_alive = MK_FALSE;
 
-    mk_pointer_reset(&request->real_path);
-
-    request->loop = 0;
     request->bytes_to_send = -1;
-    request->bytes_offset = 0;
     request->fd_file = -1;
 
     /* Response Headers */
     mk_header_response_reset(&request->headers);
-
-    /* Plugin handler */
-    request->handled_by = NULL;
-
-    /* Headers TOC */
-    request->headers_toc.length = 0;
 }
 
 static void mk_request_free(struct session_request *sr)
@@ -257,7 +229,6 @@ static int mk_request_header_process(struct session_request *sr)
                 || sr->port == 0) {
                 return -1;
             }
-
         }
         else {
             sr->host = host;    /* maybe null */
@@ -417,6 +388,7 @@ static void mk_request_premature_close(int http_status, struct client_session *c
 {
     struct session_request *sr;
     struct mk_list *sr_list = &cs->request_list;
+    struct mk_list *host_list = &config->hosts;
 
     /*
      * If the connection is too premature, we need to allocate a temporal session_request
@@ -433,6 +405,9 @@ static void mk_request_premature_close(int http_status, struct client_session *c
 
     /* Raise error */
     if (http_status > 0) {
+        if (!sr->host_conf) {
+            sr->host_conf = mk_list_entry_first(host_list, struct host, _head);
+        }
         mk_request_error(http_status, cs, sr);
 
         /* STAGE_40, request has ended */
@@ -539,6 +514,7 @@ static mk_pointer *mk_request_set_default_page(char *title, mk_pointer message,
     temp = mk_pointer_to_buf(message);
     mk_string_build(&p->data, &p->len,
                     MK_REQUEST_DEFAULT_PAGE, title, temp, signature);
+
     mk_mem_free(temp);
 
     return p;
@@ -676,10 +652,9 @@ int mk_handler_write(int socket, struct client_session *cs)
 }
 
 /* Look for some  index.xxx in pathfile */
-mk_pointer mk_request_index(char *pathfile)
+mk_pointer mk_request_index(char *pathfile, char *file_aux, const unsigned int flen)
 {
     unsigned long len;
-    char *file_aux = NULL;
     mk_pointer f;
     struct mk_string_line *entry;
     struct mk_list *head;
@@ -688,16 +663,17 @@ mk_pointer mk_request_index(char *pathfile)
 
     mk_list_foreach(head, config->index_files) {
         entry = mk_list_entry(head, struct mk_string_line, _head);
-        mk_string_build(&file_aux, &len, "%s%s",
-                        pathfile, entry->val);
+        len = snprintf(file_aux, flen, "%s%s", pathfile, entry->val);
+        if (len > flen) {
+            len = flen;
+            mk_warn("Path too long, truncated! '%s'", file_aux);
+        }
 
         if (access(file_aux, F_OK) == 0) {
             f.data = file_aux;
             f.len = len;
             return f;
         }
-        mk_mem_free(file_aux);
-        file_aux = NULL;
     }
 
     return f;
@@ -722,7 +698,6 @@ int mk_request_error(int http_status, struct client_session *cs,
     if (http_status != MK_CLIENT_LENGTH_REQUIRED &&
         http_status != MK_CLIENT_BAD_REQUEST &&
         http_status != MK_CLIENT_REQUEST_ENTITY_TOO_LARGE) {
-
 
         /* Lookup a customized error page */
         mk_list_foreach(head, &sr->host_conf->error_pages) {

@@ -33,6 +33,7 @@
 #include "mk_memory.h"
 #include "mk_http.h"
 #include "mk_http_status.h"
+#include "mk_clock.h"
 #include "mk_file.h"
 #include "mk_utils.h"
 #include "mk_config.h"
@@ -189,6 +190,7 @@ int mk_http_init(struct client_session *cs, struct session_request *sr)
         return mk_request_error(MK_CLIENT_FORBIDDEN, cs, sr);
     }
 
+
     if (mk_file_get_info(sr->real_path.data, &sr->file_info) != 0) {
         /* if the resource requested doesn't exists, let's
          * check if some plugin would like to handle it
@@ -205,7 +207,12 @@ int mk_http_init(struct client_session *cs, struct session_request *sr)
             return EXIT_NORMAL;
         }
 
-        return mk_request_error(MK_CLIENT_NOT_FOUND, cs, sr);
+        if (sr->file_info.exists == MK_FALSE) {
+            return mk_request_error(MK_CLIENT_NOT_FOUND, cs, sr);
+        }
+        else {
+            return mk_request_error(MK_CLIENT_FORBIDDEN, cs, sr);
+        }
     }
 
     /* is it a valid directory ? */
@@ -220,14 +227,27 @@ int mk_http_init(struct client_session *cs, struct session_request *sr)
 
         /* looking for a index file */
         mk_pointer index_file;
-        index_file = mk_request_index(sr->real_path.data);
+        char tmppath[MAX_PATH];
+        index_file = mk_request_index(sr->real_path.data, tmppath, MAX_PATH);
 
         if (index_file.data) {
             if (sr->real_path.data != sr->real_path_static) {
                 mk_pointer_free(&sr->real_path);
+                sr->real_path = index_file;
+                sr->real_path.data = strdup(index_file.data);
+            }
+            /* If it's static, and still fits */
+            else if (index_file.len < MK_PATH_BASE) {
+                memcpy(sr->real_path_static, index_file.data, index_file.len);
+                sr->real_path_static[index_file.len] = '\0';
+                sr->real_path.len = index_file.len;
+            }
+            /* It was static, but didn't fit */
+            else {
+                sr->real_path = index_file;
+                sr->real_path.data = strdup(index_file.data);
             }
 
-            sr->real_path = index_file;
             mk_file_get_info(sr->real_path.data, &sr->file_info);
         }
     }
@@ -308,7 +328,9 @@ int mk_http_init(struct client_session *cs, struct session_request *sr)
         date_client = mk_utils_gmt2utime(sr->if_modified_since.data);
         date_file_server = sr->file_info.last_modification;
 
-        if ((date_file_server <= date_client) && (date_client > 0)) {
+        if (date_file_server <= date_client && date_client > 0 &&
+            date_client <= log_current_utime) {
+
             mk_header_set_http_status(sr, MK_NOT_MODIFIED);
             mk_header_send(cs->socket, cs, sr);
             return EXIT_NORMAL;
@@ -343,7 +365,7 @@ int mk_http_init(struct client_session *cs, struct session_request *sr)
 
     /* Open file */
     if (sr->file_info.size > 0) {
-        sr->fd_file = open(sr->real_path.data, config->open_flags);
+        sr->fd_file = open(sr->real_path.data, sr->file_info.flags_read_only);
         if (sr->fd_file == -1) {
             MK_TRACE("open() failed");
             return mk_request_error(MK_CLIENT_FORBIDDEN, cs, sr);
@@ -397,6 +419,7 @@ int mk_http_send_file(struct client_session *cs, struct session_request *sr)
 int mk_http_directory_redirect_check(struct client_session *cs,
                                      struct session_request *sr)
 {
+    int port_redirect = 0;
     char *host;
     char *location = 0;
     char *real_location = 0;
@@ -420,13 +443,20 @@ int mk_http_directory_redirect_check(struct client_session *cs,
     location[sr->uri_processed.len]     = '/';
     location[sr->uri_processed.len + 1] = '\0';
 
-    if (config->serverport == config->standard_port) {
-        mk_string_build(&real_location, &len, "%s://%s%s",
-                        config->transport, host, location);
+    /* FIXME: should we done something similar for SSL = 443 */
+    if (sr->host.data && sr->port > 0) {
+        if (sr->port != config->standard_port) {
+            port_redirect = sr->port;
+        }
+    }
+
+    if (port_redirect > 0) {
+        mk_string_build(&real_location, &len, "%s://%s:%i%s",
+                        config->transport, host, port_redirect, location);
     }
     else {
-        mk_string_build(&real_location, &len, "%s://%s:%i%s",
-                        config->transport, host, config->serverport, location);
+        mk_string_build(&real_location, &len, "%s://%s%s",
+                        config->transport, host, location);
     }
 
 #ifdef TRACE
@@ -460,7 +490,7 @@ int mk_http_directory_redirect_check(struct client_session *cs,
  * Check if a connection can continue open using as criteria
  * the keepalive headers vars and Monkey configuration
  */
-int mk_http_keepalive_check(int socket, struct client_session *cs)
+int mk_http_keepalive_check(struct client_session *cs)
 {
     struct session_request *sr_node;
     struct mk_list *sr_head;
@@ -711,7 +741,7 @@ int mk_http_request_end(int socket)
      * connection can continue working or we must
      * close it.
      */
-    ka = mk_http_keepalive_check(socket, cs);
+    ka = mk_http_keepalive_check(cs);
     mk_request_free_list(cs);
 
     if (ka < 0) {
