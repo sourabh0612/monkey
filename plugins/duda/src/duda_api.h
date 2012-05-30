@@ -28,7 +28,6 @@
 #include "duda_cookie.h"
 #include "duda_package.h"
 #include "duda_console.h"
-#include "duda_redis.h"
 
 /* types of data */
 typedef struct duda_interface duda_interface_t;

@@ -23,6 +23,7 @@
 #define DUDA_MAIN_H
 
 #include "MKPlugin.h"
+#include "duda_global.h"
 
 #define MAP_WS_APP_NAME   0X00
 #define MAP_WS_INTERFACE  0X10
@@ -70,8 +71,8 @@ typedef struct duda_request {
 } duda_request_t;
 
 pthread_key_t duda_global_events_write;
-pthread_key_t duda_redis_fds;
 
+duda_global_t my_data_mem;
 
 void *duda_load_library(const char *path);
 void *duda_load_symbol(void *handle, const char *symbol);

@@ -8,6 +8,9 @@
 #include "hiredis.h"
 #include "async.h"
 #include "duda_api.h"
+#include "duda_global.h"
+
+duda_global_t redis_global;
 
 typedef struct duda_redis {
     

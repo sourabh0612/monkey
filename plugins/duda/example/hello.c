@@ -15,9 +15,6 @@
 
 DUDA_REGISTER("Service Example", "service");
 
-duda_global_t my_data_mem;
-duda_global_t my_data_empty;
-
 /*
  *
  * URI Map example
@@ -53,10 +50,17 @@ void connectCallback(const redisAsyncContext *c, int status) {
     printf("Connected...\n");
 }
 
+void disconnectCallback(const redisAsyncContext *c, int status) {
+    if (status != REDIS_OK) {
+        printf("Error: %s\n", c->errstr);
+        return;
+    }
+    printf("Disconnected...\n");
+}
+
 void cb_hello_world(duda_request_t *dr)
 {
-    msg->warn("my global key: %p", global->get(my_data_mem));
-    printf("REDIS:%d\n",duda_redis_fds);
+    printf("in thread context redis : %p pid:%u\n",redis_global.key, (unsigned int)pthread_self());
     response->http_status(dr, 200);
     response->http_header(dr, "Content-Type: text/plain", 24);
 
@@ -67,17 +71,12 @@ void cb_hello_world(duda_request_t *dr)
     redisAsyncContext *rc = redis->connect("127.0.0.1", 6379);
     redis->attach(efd,rc);
     redis->setConnectCallback(rc,connectCallback);
+    redis->setDisconnectCallback(rc, disconnectCallback);
     redis->disconnect(rc);
     redis->listen(efd,max_events);
     response->end(dr, cb_end);
 }
 
-
-void *cb_global_mem()
-{
-    void *mem = malloc(16);
-    return mem;
-}
 
 int duda_main(struct duda_api_objects *api)
 {
@@ -85,17 +84,17 @@ int duda_main(struct duda_api_objects *api)
     duda_method_t    *method;
     duda_param_t *param;
 
+    struct mk_list *list_redis_fd;
+
     duda_service_init();
 
     session->init();
 
     duda_load_package(redis, "redis");
 
-    /* An empty global variable */
-    duda_global_init(my_data_empty, NULL);
+    duda_global_init(redis_global, NULL);
 
-    /* A global variable with the value returned by the callback */
-    duda_global_init(my_data_mem, cb_global_mem);
+    printf("in process context redis : %p pid:%u\n",redis_global.key, (unsigned int)pthread_self());
 
     /* archive interface */
     if_system = map->interface_new("examples");

@@ -34,6 +34,8 @@ MONKEY_PLUGIN("duda",                                     /* shortname */
               MK_PLUGIN_CORE_THCTX | MK_PLUGIN_STAGE_30); /* hooks */
 
 
+
+
 void *duda_load_library(const char *path)
 {
     void *handle;
@@ -71,6 +73,7 @@ int duda_service_register(struct duda_api_objects *api, struct web_service *ws)
 
     /* Load and invoke duda_main() */
     service_init = (int (*)()) duda_load_symbol(ws->handler, "duda_main");
+    
     if (!service_init) {
         mk_err("Duda: invalid web service %s", ws->app_name);
         exit(EXIT_FAILURE);
@@ -111,7 +114,6 @@ int duda_service_register(struct duda_api_objects *api, struct web_service *ws)
             }
         }
     }
-
     return 0;
 }
 
@@ -189,9 +191,7 @@ int _mkp_event_write(int sockfd)
 }
 
 void _mkp_core_prctx(struct server_config *config)
-{
-    pthread_key_create(&duda_redis_fds, NULL);
-    printf("RDIS: %d\n",duda_redis_fds);
+{    
 }
 
 /* Thread context initialization */
@@ -199,7 +199,6 @@ void _mkp_core_thctx()
 {
     struct mk_list *head_vs, *head_ws, *head_gl;
     struct mk_list *list_events_write;
-    struct mk_list *list_redis_fd;
     struct vhost_services *entry_vs;
     struct web_service *entry_ws;
     duda_global_t *entry_gl;
@@ -212,12 +211,6 @@ void _mkp_core_thctx()
     mk_list_init(list_events_write);
     pthread_setspecific(duda_global_events_write, (void *) list_events_write);
     
-    list_redis_fd = mk_api->mem_alloc(sizeof(struct mk_list));
-    mk_list_init(list_redis_fd);
-    pthread_setspecific(duda_redis_fds, (void *) list_redis_fd);
-    printf("redis : %d %d %d\n",list_redis_fd,list_redis_fd->prev, duda_redis_fds);
-    list_redis_fd = pthread_getspecific(duda_redis_fds);
-    printf("redis : %d %d %d\n",list_redis_fd,list_redis_fd->prev, duda_redis_fds);
     /*
      * Load global data if applies, this is toooo recursive, we need to go through
      * every virtual host and check the services loaded for each one, then lookup
@@ -251,10 +244,12 @@ int _mkp_init(void **api, char *confdir)
     /* Load configuration */
     duda_conf_main_init(confdir);
     duda_conf_vhost_init();
+    
+    pthread_key_create(&duda_global_events_write, NULL);
     duda_load_services();
 
     /* Global data / Thread scope */
-    pthread_key_create(&duda_global_events_write, NULL);
+    
     
     return 0;
 }
@@ -471,8 +466,7 @@ int duda_service_run(struct client_session *cs,
 struct web_service *duda_get_service_from_uri(struct session_request *sr,
                                               struct vhost_services *vs_host)
 {
-	printf("REDIS:%d\n",duda_redis_fds);
-    int pos;
+	int pos;
     struct mk_list *head;
     struct web_service *ws_entry;
 
