@@ -1,8 +1,7 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 
 #include "webservice.h"
-#include "packages/json/json.h"
-#include "packages/sha1/sha1.h"
+#include "packages/redis/redis.h"
 
 #define INCORRECT_PARAMETERS "Incorrect Parameters\n"
 #define FORMATTED_OUT "==Formatted JSON output==\n"
@@ -46,186 +45,33 @@ void cb_end(duda_request_t *dr)
     msg->info("my end callback");
 }
 
+void connectCallback(const redisAsyncContext *c, int status) {
+    if (status != REDIS_OK) {
+        printf("Error: %s\n", c->errstr);
+        return;
+    }
+    printf("Connected...\n");
+}
+
 void cb_hello_world(duda_request_t *dr)
 {
     msg->warn("my global key: %p", global->get(my_data_mem));
-
+    printf("REDIS:%d\n",duda_redis_fds);
     response->http_status(dr, 200);
     response->http_header(dr, "Content-Type: text/plain", 24);
 
     response->body_print(dr, "hello world!\n", 13);
+    int efd,max_events=10;
+    efd = epoll_create(max_events);
+
+    redisAsyncContext *rc = redis->connect("127.0.0.1", 6379);
+    redis->attach(efd,rc);
+    redis->setConnectCallback(rc,connectCallback);
+    redis->disconnect(rc);
+    redis->listen(efd,max_events);
     response->end(dr, cb_end);
 }
 
-void cb_sendfile(duda_request_t *dr)
-{
-    response->http_status(dr, 200);
-    response->http_header(dr, "Content-Type: text/plain", 24);
-
-    response->sendfile(dr, "/etc/issue");
-    response->sendfile(dr, "/etc/motd");
-    response->end(dr, cb_end);
-
-}
-
-void cb_sha1_test(duda_request_t *dr)
-{
-    char toEncode[] = "hello world!";
-    unsigned int length = strlen(toEncode);
-    unsigned char encoded[SHA_DIGEST_LENGTH];
-    sha1->encode(toEncode, encoded, length);
-
-    response->http_status(dr, 200);
-    response->http_header(dr, "Content-Type: text/html;charset=UTF-8", 37);
-    response->body_print(dr, "Raw: hello world!<br>Encoded: ", 30);
-    response->body_print(dr, (char *)encoded, SHA_DIGEST_LENGTH);
-    response->end(dr, cb_end);
-}
-
-void cb_json_first(duda_request_t *dr)
-{
-    char *resp;
-    const char strparse[]= " {                   \
-        \"name\":   \"Michel Perez\",            \
-        \"age\":    22,                          \
-        \"address\":      {                      \
-             \"streetAddress\": \"Piso 15\",     \
-             \"city\": \"Valparaiso\",           \
-             \"country\": \"Chile\"              \
-         },                                      \
-        \"phoneNumber\":    [                    \
-             {                                   \
-              \"type\": \"work\",                \
-              \"number\": \"2 666 4567\"         \
-             },                                  \
-             {                                   \
-             \"type\": \"fax\",                  \
-             \"number\": null                    \
-             }                                   \
-         ]                                       \
-        }";
-    json_t *jroot,*jaddress,*jphone,*jphone1,*jphone2,*jparse;
-
-    response->http_status(dr, 200);
-    response->http_header(dr, "Content-Type: text/plain", 24);
-
-    jroot = json->create_object();
-    json->add_to_object(jroot, "name", json->create_string("Michel Perez"));
-    json->add_to_object(jroot, "age", json->create_number(22.0));
-
-    jaddress = json->create_object();
-    json->add_to_object(jaddress, "streetAddress", json->create_string("Piso 15"));
-    json->add_to_object(jaddress, "city", json->create_string("Valparaiso"));
-    json->add_to_object(jaddress, "country", json->create_string("Chile"));
-    json->add_to_object(jroot, "address", jaddress);
-
-    jphone = json->create_array();
-    jphone1 = json->create_object();
-    json->add_to_object(jphone1, "type", json->create_string("work"));
-    json->add_to_object(jphone1, "number", json->create_string("2 666 4567"));
-    jphone2 = json->create_object();
-    json->add_to_object(jphone2, "type", json->create_string("fax"));
-    json->add_to_object(jphone2, "number", json->create_null());
-    json->add_to_array(jphone, jphone1);
-    json->add_to_array(jphone, jphone2);
-    json->add_to_object(jroot, "phoneNumber", jphone);
-
-    response->body_print(dr, FORMATTED_OUT, sizeof(FORMATTED_OUT) - 1);
-    resp = json->print(jroot);
-    response->body_print(dr, resp, strlen(resp));
-
-    resp = NULL;
-    jparse = json->parse(strparse);
-    response->body_print(dr, UNFORMATTED_OUT, sizeof(UNFORMATTED_OUT) - 1);
-    resp = json->print_unformatted(jparse);
-    json->delete(jparse);
-    response->body_print(dr, resp, strlen(resp));
-
-    response->end(dr, cb_end);
-}
-
-void cb_json_second(duda_request_t *dr){
-    char *resp,*pvalue1="",*pvalue2="";
-    short int pnumber;
-    const char strparse[]= " {                   \
-        \"name\":   \"Michel Perez\",            \
-        \"age\":    22,                          \
-        \"address\":      {                      \
-             \"streetAddress\": \"Piso 15\",     \
-             \"city\": \"Valparaiso\",           \
-             \"country\": \"Chile\"              \
-         },                                      \
-        \"phoneNumber\":    [                    \
-             {                                   \
-              \"type\": \"work\",                \
-              \"number\": \"2 666 4567\"         \
-             },                                  \
-             {                                   \
-             \"type\": \"fax\",                  \
-             \"number\": null                    \
-             }                                   \
-         ]                                       \
-        }";
-    json_t *jroot,*jaddress,*jphone,*jphone1,*jphone2,*jparse;
-
-    response->http_status(dr, 200);
-    response->http_header(dr, "Content-Type: text/plain", 24);
-
-    pnumber = 0;
-    pvalue1 = param->get(dr, pnumber);
-    pnumber = 1;
-    pvalue2 = param->get(dr, pnumber);
-
-    if(!pvalue1 || !pvalue2) {
-        response->body_print(dr, INCORRECT_PARAMETERS, sizeof(INCORRECT_PARAMETERS) - 1);
-    }else if(strncmp(pvalue1, CREATE, sizeof(CREATE) - 1) == 0 && (sizeof(CREATE) - 1) == strlen(pvalue1)) {
-        jroot = json->create_object();
-        json->add_to_object(jroot, "name", json->create_string("Michel Perez"));
-        json->add_to_object(jroot, "age", json->create_number(22.0));
-
-        jaddress = json->create_object();
-        json->add_to_object(jaddress, "streetAddress", json->create_string("Piso 15"));
-        json->add_to_object(jaddress, "city", json->create_string("Valparaiso"));
-        json->add_to_object(jaddress, "country", json->create_string("Chile"));
-        json->add_to_object(jroot, "address", jaddress);
-
-        jphone = json->create_array();
-        jphone1 = json->create_object();
-        json->add_to_object(jphone1, "type", json->create_string("work"));
-        json->add_to_object(jphone1, "number", json->create_string("2 666 4567"));
-        jphone2 = json->create_object();
-        json->add_to_object(jphone2, "type", json->create_string("fax"));
-        json->add_to_object(jphone2, "number", json->create_null());
-        json->add_to_array(jphone, jphone1);
-        json->add_to_array(jphone, jphone2);
-        json->add_to_object(jroot, "phoneNumber", jphone);
-
-        if(strncmp(pvalue2, FORMATTED, sizeof(FORMATTED) - 1) == 0 && (sizeof(FORMATTED) - 1) == strlen(pvalue2)) {
-            resp = json->print(jroot);
-            response->body_print(dr, resp, strlen(resp));
-        }else if(strncmp(pvalue2, UNFORMATTED, sizeof(UNFORMATTED) - 1) == 0 && (sizeof(UNFORMATTED) - 1) == strlen(pvalue2)) {
-            resp = json->print_unformatted(jroot);
-            response->body_print(dr, resp, strlen(resp));
-        }else  {
-            response->body_print(dr, INCORRECT_PARAMETERS, sizeof(INCORRECT_PARAMETERS) - 1);
-        }
-    }else if(strncmp(pvalue1, PARSE, sizeof(PARSE) - 1) == 0 && (sizeof(PARSE) - 1) == strlen(pvalue1)) {
-        jparse = json->parse(strparse);
-        if(strncmp(pvalue2, FORMATTED, sizeof(FORMATTED) - 1) == 0 && (sizeof(FORMATTED) - 1) == strlen(pvalue2)) {
-            resp = json->print(jparse);
-            response->body_print(dr, resp, strlen(resp));
-        }else if(strncmp(pvalue2, UNFORMATTED, sizeof(UNFORMATTED) - 1) == 0 && (sizeof(UNFORMATTED) - 1) == strlen(pvalue2)) {
-            resp = json->print_unformatted(jparse);
-            response->body_print(dr, resp, strlen(resp));
-        }else {
-            response->body_print(dr, INCORRECT_PARAMETERS, sizeof(INCORRECT_PARAMETERS) - 1);
-        }
-        json->delete(jparse);
-    }else {
-        response->body_print(dr, INCORRECT_PARAMETERS, sizeof(INCORRECT_PARAMETERS) - 1);
-    }
-        response->end(dr, cb_end);
-}
 
 void *cb_global_mem()
 {
@@ -243,8 +89,7 @@ int duda_main(struct duda_api_objects *api)
 
     session->init();
 
-    duda_load_package(json, "json");
-    duda_load_package(sha1, "sha1");
+    duda_load_package(redis, "redis");
 
     /* An empty global variable */
     duda_global_init(my_data_empty, NULL);
@@ -259,30 +104,7 @@ int duda_main(struct duda_api_objects *api)
     method = map->method_new("hello_world", "cb_hello_world", 0);
     map->interface_add_method(method, if_system);
 
-    /* URI: /hello/examples/sha1_test */
-    method = map->method_new("sha1_test", "cb_sha1_test", 0);
-    map->interface_add_method(method, if_system);
-
-    /* URI: /hello/examples/json_first */
-    method = map->method_new("json_first", "cb_json_first", 0);
-    map->interface_add_method(method, if_system);
-
-    /* URI: /hello/examples/json_second/<action>/<format>
-     * action: create/parse
-     * format: formatted/unformatted
-     */
-    method = map->method_new("json_second", "cb_json_second", 2);
-    param = map->param_new("action", strlen("create"));
-    map->method_add_param(param, method);
-    param = map->param_new("format", strlen("unformatted"));
-    map->method_add_param(param, method);
-    map->interface_add_method(method, if_system);
-
-    /* URI: /hello/examples/sendfile */
-    method = map->method_new("sendfile", "cb_sendfile", 0);
-    map->interface_add_method(method, if_system);
-
-    /* Add interface to map */
+   /* Add interface to map */
     duda_service_add_interface(if_system);
 
     if_system = map->interface_new("test");

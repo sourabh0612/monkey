@@ -70,6 +70,7 @@ typedef struct duda_request {
 } duda_request_t;
 
 pthread_key_t duda_global_events_write;
+pthread_key_t duda_redis_fds;
 
 
 void *duda_load_library(const char *path);

@@ -152,6 +152,7 @@ static void mk_sched_thread_lists_init()
     cs_list = mk_mem_malloc(sizeof(struct mk_list));
     mk_list_init(cs_list);
     mk_sched_set_request_list(cs_list);
+
 }
 
 /* created thread, all this calls are in the thread context */
