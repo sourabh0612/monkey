@@ -60,20 +60,17 @@ void disconnectCallback(const redisAsyncContext *c, int status) {
 
 void cb_hello_world(duda_request_t *dr)
 {
-    printf("in thread context redis : %p pid:%u\n",redis_global.key, (unsigned int)pthread_self());
     response->http_status(dr, 200);
     response->http_header(dr, "Content-Type: text/plain", 24);
 
     response->body_print(dr, "hello world!\n", 13);
-    int efd,max_events=10;
-    efd = epoll_create(max_events);
-
+    
     redisAsyncContext *rc = redis->connect("127.0.0.1", 6379);
-    redis->attach(efd,rc);
+    redis->attach(rc,dr);
     redis->setConnectCallback(rc,connectCallback);
     redis->setDisconnectCallback(rc, disconnectCallback);
     redis->disconnect(rc);
-    redis->listen(efd,max_events);
+    //redis->listen(max_events);
     response->end(dr, cb_end);
 }
 
@@ -91,10 +88,6 @@ int duda_main(struct duda_api_objects *api)
     session->init();
 
     duda_load_package(redis, "redis");
-
-    duda_global_init(redis_global, NULL);
-
-    printf("in process context redis : %p pid:%u\n",redis_global.key, (unsigned int)pthread_self());
 
     /* archive interface */
     if_system = map->interface_new("examples");

@@ -12,7 +12,7 @@ void mk_redis_read(int fd)
     struct mk_list *list_redis_fd,*head;
     duda_redis_t *dr_entry;
     redisAsyncContext *rc;
-    list_redis_fd = duda_global_get(redis_global);
+    list_redis_fd = pthread_getspecific(redis_key);
 
     mk_list_foreach(head, list_redis_fd) {
         dr_entry = mk_list_entry(head, duda_redis_t, _head_redis_fd);
@@ -33,7 +33,7 @@ void mk_redis_write(int fd)
     struct mk_list *list_redis_fd,*head;
     duda_redis_t *dr_entry;
     redisAsyncContext *rc;
-    list_redis_fd = duda_global_get(redis_global);
+    list_redis_fd = pthread_getspecific(redis_key);
 
     mk_list_foreach(head, list_redis_fd) {
         dr_entry = mk_list_entry(head, duda_redis_t, _head_redis_fd);
@@ -54,7 +54,7 @@ void mk_redis_error(int fd)
     struct mk_list *list_redis_fd,*head;
     duda_redis_t *dr_entry;
     redisAsyncContext *rc;
-    list_redis_fd = duda_global_get(redis_global);
+    list_redis_fd = pthread_getspecific(redis_key);
 
     mk_list_foreach(head, list_redis_fd) {
         dr_entry = mk_list_entry(head, duda_redis_t, _head_redis_fd);
@@ -74,13 +74,13 @@ void mk_redis_close(int fd)
     MK_TRACE("[FD %i] Connection Handler / close", fd);
     struct mk_list *list_redis_fd,*head;
     duda_redis_t *dr_entry;
-    list_redis_fd = duda_global_get(redis_global);
+    list_redis_fd = pthread_getspecific(redis_key);
 
     mk_list_foreach(head, list_redis_fd) {
         dr_entry = mk_list_entry(head, duda_redis_t, _head_redis_fd);
         if(dr_entry->rc->c.fd == fd){
             mk_list_del(&dr_entry->_head_redis_fd);
-            duda_global_set(redis_global, list_redis_fd);
+            pthread_setspecific(redis_key, (void *) list_redis_fd);
             break;
         }
     }
@@ -104,14 +104,27 @@ redisAsyncContext * redis_connect(const char *ip, int port)
     }
     dr = malloc(sizeof(duda_redis_t));
     dr->rc = c;
-    printf("redis : %p pid:%u\n",redis_global.key, (unsigned int)pthread_self());
-    list_redis_fd = duda_global_get(redis_global);
+    printf("in thread context redis : %p pid:%u\n",redis_key, (unsigned int)pthread_self());
+    list_redis_fd = pthread_getspecific(redis_key);
+    if(list_redis_fd == NULL)
+    {
+        list_redis_fd = malloc(sizeof(struct mk_list));
+        mk_list_init(list_redis_fd);
+        pthread_setspecific(redis_key, (void *) list_redis_fd);    
+    }
+
+    printf("list:%p, list->next:%p, list->prev:%p\n",list_redis_fd, list_redis_fd->next, list_redis_fd->prev);
     mk_list_add(&dr->_head_redis_fd, list_redis_fd);
     return c;
 }
 
-int redis_attach(int efd, redisAsyncContext *ac)
+int redis_attach(redisAsyncContext *ac, duda_request_t *dr)
 {
+    redis_data_t *rd;
+    rd = malloc(sizeof(redis_data_t));
+    
+    rd->rc = ac;
+    rd->dr = dr;
 
     /* Nothing should be attached when something is already attached */
     if (ac->ev.data != NULL)
@@ -123,7 +136,7 @@ int redis_attach(int efd, redisAsyncContext *ac)
     ac->ev.addWrite = redisAddWrite;
     ac->ev.delWrite = redisDelWrite;
     ac->ev.cleanup = redisCleanup;
-    ac->ev.data = &efd;
+    ac->ev.data = rd;
 
     return REDIS_OK;
 
@@ -131,6 +144,8 @@ int redis_attach(int efd, redisAsyncContext *ac)
 
 void redisAddRead(void *privdata) {
     printf("In addread\n");
+  //  redis_data_t *rd = (redis_data_t *) privdata;
+  //  mk_api->event_add(rd->rc->c.fd, MK_EPOLL_READ, ,rd->dr->cs, rd->dr->sr);
 /*    int *e = (int *)privdata;
     mk_epoll_add(&e, e->fd, MK_EPOLL_READ,
                       MK_EPOLL_LEVEL_TRIGGERED);
@@ -182,5 +197,10 @@ void redis_listen(int efd, int max_events)
 }
 
 int redis_init(){
+    struct mk_list *list_redis_fd;
+
+    pthread_key_create(&redis_key, NULL);
+    
+    printf("in process context redis : %p pid:%u\n",redis_key, (unsigned int)pthread_self());
     return 1;
 }

@@ -31,9 +31,9 @@ struct duda_api_redis *get_redis_api()
     redis = malloc(sizeof(struct duda_api_redis));
 
     /* Map API calls */
-    redis->connect      = redis_connect;
-    redis->disconnect   = redisAsyncDisconnect;  
-    redis->attach       = redis_attach;
+    redis->connect               = redis_connect;
+    redis->disconnect            = redisAsyncDisconnect;  
+    redis->attach                = redis_attach;
     redis->setConnectCallback    = redisAsyncSetConnectCallback;
     redis->setDisconnectCallback = redisAsyncSetDisconnectCallback;
     redis->command               = redisAsyncCommand;

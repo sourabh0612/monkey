@@ -8,9 +8,13 @@
 #include "hiredis.h"
 #include "async.h"
 #include "duda_api.h"
-#include "duda_global.h"
 
-duda_global_t redis_global;
+pthread_key_t redis_key;
+
+typedef struct redis_data {
+    redisAsyncContext *rc;
+    duda_request_t *dr;
+} redis_data_t;
 
 typedef struct duda_redis {
     
@@ -24,7 +28,7 @@ struct duda_api_redis {
     /* redis functions */
     redisAsyncContext *(*connect) (const char *, int);
     void (*disconnect) (redisAsyncContext *);
-    int (*attach) (int, redisAsyncContext *);
+    int (*attach) (redisAsyncContext *, duda_request_t *);
     int (*setConnectCallback) (redisAsyncContext *,
                                void (*)(const redisAsyncContext *, int));
     int (*setDisconnectCallback) (redisAsyncContext *,
@@ -43,7 +47,7 @@ typedef struct duda_api_redis redis_object_t;
 redis_object_t *redis;
 
 redisAsyncContext * redis_connect(const char *ip, int port);
-int redis_attach(int efd, redisAsyncContext *rc);
+int redis_attach(redisAsyncContext *rc, duda_request_t *dr);
 void redis_listen(int efd, int max_events);
 int redis_init();
 
