@@ -69,6 +69,7 @@ void cb_hello_world(duda_request_t *dr)
     redis->attach(rc,dr);
     redis->setConnectCallback(rc,connectCallback);
     redis->setDisconnectCallback(rc, disconnectCallback);
+    redis->command(rc, NULL, NULL, "SET key 15");
     redis->disconnect(rc);
     //redis->listen(max_events);
     response->end(dr, cb_end);

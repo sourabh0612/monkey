@@ -34,8 +34,6 @@ MONKEY_PLUGIN("duda",                                     /* shortname */
               MK_PLUGIN_CORE_THCTX | MK_PLUGIN_STAGE_30); /* hooks */
 
 
-
-
 void *duda_load_library(const char *path)
 {
     void *handle;
@@ -73,7 +71,6 @@ int duda_service_register(struct duda_api_objects *api, struct web_service *ws)
 
     /* Load and invoke duda_main() */
     service_init = (int (*)()) duda_load_symbol(ws->handler, "duda_main");
-    
     if (!service_init) {
         mk_err("Duda: invalid web service %s", ws->app_name);
         exit(EXIT_FAILURE);
@@ -114,6 +111,7 @@ int duda_service_register(struct duda_api_objects *api, struct web_service *ws)
             }
         }
     }
+
     return 0;
 }
 
@@ -191,7 +189,7 @@ int _mkp_event_write(int sockfd)
 }
 
 void _mkp_core_prctx(struct server_config *config)
-{    
+{
 }
 
 /* Thread context initialization */
@@ -210,7 +208,7 @@ void _mkp_core_thctx()
     list_events_write = mk_api->mem_alloc(sizeof(struct mk_list));
     mk_list_init(list_events_write);
     pthread_setspecific(duda_global_events_write, (void *) list_events_write);
-    
+
     /*
      * Load global data if applies, this is toooo recursive, we need to go through
      * every virtual host and check the services loaded for each one, then lookup
@@ -244,13 +242,10 @@ int _mkp_init(void **api, char *confdir)
     /* Load configuration */
     duda_conf_main_init(confdir);
     duda_conf_vhost_init();
-    
-    pthread_key_create(&duda_global_events_write, NULL);
     duda_load_services();
 
     /* Global data / Thread scope */
-    
-    
+    pthread_key_create(&duda_global_events_write, NULL);
     return 0;
 }
 
@@ -404,7 +399,8 @@ int duda_service_end(duda_request_t *dr)
     return ret;
 }
 
-int duda_service_run(struct client_session *cs,
+int duda_service_run(struct plugin *plugin,
+                     struct client_session *cs,
                      struct session_request *sr,
                      struct web_service *web_service)
 {
@@ -419,6 +415,7 @@ int duda_service_run(struct client_session *cs,
     /* service details */
     dr->ws_root = web_service;
     dr->n_params = 0;
+    dr->plugin = plugin;
     dr->cs = cs;
     dr->sr = sr;
 
@@ -466,7 +463,7 @@ int duda_service_run(struct client_session *cs,
 struct web_service *duda_get_service_from_uri(struct session_request *sr,
                                               struct vhost_services *vs_host)
 {
-	int pos;
+    int pos;
     struct mk_list *head;
     struct web_service *ws_entry;
 
@@ -529,7 +526,7 @@ int _mkp_stage_30(struct plugin *plugin, struct client_session *cs,
             return MK_PLUGIN_RET_NOT_ME;
         }
 
-        if (duda_service_run(cs, sr, web_service) == 0) {
+        if (duda_service_run(plugin, cs, sr, web_service) == 0) {
             return MK_PLUGIN_RET_CONTINUE;
         }
     }

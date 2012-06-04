@@ -5,6 +5,7 @@
 #include "async.h"
 #include "duda_api.h"
 #include "redis.h"
+#include "MKPlugin.h"
 
 void mk_redis_read(int fd)
 {
@@ -84,7 +85,6 @@ void mk_redis_close(int fd)
             break;
         }
     }
-    
 }
 
 void mk_redis_timeout(int fd)
@@ -95,16 +95,16 @@ void mk_redis_timeout(int fd)
 
 redisAsyncContext * redis_connect(const char *ip, int port)
 {
-    struct mk_list *list_redis_fd,*new,*prev,*next;
+    struct mk_list *list_redis_fd;
     duda_redis_t *dr;
     redisAsyncContext *c = redisAsyncConnect(ip, port);
     if (c->err) {
         printf("REDIS: Can't connect: %s\n", c->errstr);
         exit(EXIT_FAILURE);
     }
-    dr = malloc(sizeof(duda_redis_t));
+    dr = mk_api->mem_alloc(sizeof(duda_redis_t));
     dr->rc = c;
-    printf("in thread context redis : %p pid:%u\n",redis_key, (unsigned int)pthread_self());
+    printf("in thread context redis : %p pid:%p\n",redis_key, (unsigned int)pthread_self());
     list_redis_fd = pthread_getspecific(redis_key);
     if(list_redis_fd == NULL)
     {
@@ -121,7 +121,8 @@ redisAsyncContext * redis_connect(const char *ip, int port)
 int redis_attach(redisAsyncContext *ac, duda_request_t *dr)
 {
     redis_data_t *rd;
-    rd = malloc(sizeof(redis_data_t));
+    printf("mk_api: %p\n",mk_api);
+    rd = mk_api->mem_alloc(sizeof(redis_data_t));
     
     rd->rc = ac;
     rd->dr = dr;
@@ -132,10 +133,10 @@ int redis_attach(redisAsyncContext *ac, duda_request_t *dr)
 
     /* Register functions to start/stop listening for events */
     ac->ev.addRead = redisAddRead;
-    ac->ev.delRead = redisDelRead;
+    ac->ev.delRead = redisDel;
     ac->ev.addWrite = redisAddWrite;
-    ac->ev.delWrite = redisDelWrite;
-    ac->ev.cleanup = redisCleanup;
+    ac->ev.delWrite = redisDel;
+    ac->ev.cleanup = redisDel;
     ac->ev.data = rd;
 
     return REDIS_OK;
@@ -144,56 +145,25 @@ int redis_attach(redisAsyncContext *ac, duda_request_t *dr)
 
 void redisAddRead(void *privdata) {
     printf("In addread\n");
-  //  redis_data_t *rd = (redis_data_t *) privdata;
-  //  mk_api->event_add(rd->rc->c.fd, MK_EPOLL_READ, ,rd->dr->cs, rd->dr->sr);
-/*    int *e = (int *)privdata;
-    mk_epoll_add(&e, e->fd, MK_EPOLL_READ,
-                      MK_EPOLL_LEVEL_TRIGGERED);
-*/
+    redis_data_t *rd = (redis_data_t *) privdata;
+    mk_api->event_add(rd->rc->c.fd, MK_EPOLL_READ, rd->dr->plugin,
+                           rd->dr->cs, rd->dr->sr, MK_EPOLL_LEVEL_TRIGGERED);
+    duda_event_register_write(rd->dr);
 }
 
-void redisDelRead(void *privdata) {
-    printf("In delread\n");
-/*    redisEvents *e = (redisEvents*)privdata;
-    mk_epoll_del(efd, fd);
-*/
+void redisDel(void *privdata) {
+    printf("In del\n");
+    redis_data_t *rd = (redis_data_t *) privdata;
+    mk_api->event_del(rd->rc->c.fd);
 }
 
 void redisAddWrite(void *privdata) {
     printf("In addwrite\n");
-/*    redisEvents *e = (redisEvents*)privdata;
-    mk_epoll_add(e->efd, e->fd, MK_EPOLL_WRITE,
-                      MK_EPOLL_LEVEL_TRIGGERED);
-*/
-}
-
-void redisDelWrite(void *privdata) {
-    printf("In delwrite\n");
-/*    redisEvents *e = (redisEvents*)privdata;
-    mk_epoll_del(efd, fd);
-*/
-}
-
-void redisCleanup(void *privdata) {
-    printf("In clean\n");
-/*    redisEvents *e = (redisEvents*)privdata;
-    redisDelRead(privatedata);
-    redisDelWrite(privatedata);
-    free(e);
-*/
-}
-
-void redis_listen(int efd, int max_events)
-{
-    mk_epoll_handlers *handler;
-    handler = mk_epoll_set_handlers((void *) mk_redis_read,
-                                    (void *) mk_redis_write,
-                                    (void *) mk_redis_error,
-                                    (void *) mk_redis_close,
-                                    (void *) mk_redis_timeout);
-
-    mk_epoll_init(efd, handler, max_events);
-
+    redis_data_t *rd = (redis_data_t *) privdata;
+    printf("fd:%i\n",rd->rc->c.fd);
+    mk_api->event_add(rd->rc->c.fd, MK_EPOLL_WRITE, rd->dr->plugin,
+                           rd->dr->cs, rd->dr->sr, MK_EPOLL_LEVEL_TRIGGERED);
+    duda_event_register_write(rd->dr);
 }
 
 int redis_init(){
@@ -201,6 +171,6 @@ int redis_init(){
 
     pthread_key_create(&redis_key, NULL);
     
-    printf("in process context redis : %p pid:%u\n",redis_key, (unsigned int)pthread_self());
+    printf("in process context redis : %p pid:%p\n",redis_key, (unsigned int)pthread_self());
     return 1;
 }

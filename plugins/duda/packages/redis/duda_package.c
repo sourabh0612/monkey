@@ -37,17 +37,22 @@ struct duda_api_redis *get_redis_api()
     redis->setConnectCallback    = redisAsyncSetConnectCallback;
     redis->setDisconnectCallback = redisAsyncSetDisconnectCallback;
     redis->command               = redisAsyncCommand;
-    redis->listen                = redis_listen;
-
+    
     return redis;
 }
 
-duda_package_t *init_duda_package()
+duda_package_t *duda_package_main(void **api)
 {
-    duda_package_t *dpkg = malloc(sizeof(duda_package_t));
+    duda_package_t *dpkg;
 
+    /* Initialize package internals */
+    duda_package_init();
+
+    /* Init redis*/
     redis_init();
 
+    /* Package object */    
+    dpkg = mk_api->mem_alloc(sizeof(duda_package_t));
     dpkg->name    = "redis";
     dpkg->version = "0.1";
     dpkg->api     = get_redis_api();

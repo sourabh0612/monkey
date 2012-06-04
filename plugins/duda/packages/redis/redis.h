@@ -19,6 +19,7 @@ typedef struct redis_data {
 typedef struct duda_redis {
     
     redisAsyncContext *rc;
+    duda_request_t *dr;
     struct mk_list _head_redis_fd;
     
 } duda_redis_t;
@@ -35,11 +36,7 @@ struct duda_api_redis {
                                   void (*)(const redisAsyncContext *, int));
     int (*command) (redisAsyncContext *, 
                     void (*) (redisAsyncContext*, void*, void*), void *, 
-                    const char *, va_list);
-    void (*listen) (int, int);
-
-    /* epoll functions */
-    
+                    const char *);
 };
 
 typedef struct duda_api_redis redis_object_t;
@@ -48,14 +45,11 @@ redis_object_t *redis;
 
 redisAsyncContext * redis_connect(const char *ip, int port);
 int redis_attach(redisAsyncContext *rc, duda_request_t *dr);
-void redis_listen(int efd, int max_events);
 int redis_init();
 
 void redisAddRead(void *privdata);
-void redisDelRead(void *privdata);
+void redisDel(void *privdata);
 void redisAddWrite(void *privdata);
-void redisDelWrite(void *privdata);
-void redisCleanup(void *privdata);
 
 void mk_redis_read(int fd);
 void mk_redis_write(int fd);

@@ -23,7 +23,6 @@
 #define DUDA_MAIN_H
 
 #include "MKPlugin.h"
-#include "duda_global.h"
 
 #define MAP_WS_APP_NAME   0X00
 #define MAP_WS_INTERFACE  0X10
@@ -49,7 +48,8 @@ typedef struct duda_request {
     mk_pointer params[MAP_WS_MAX_PARAMS];
     short int n_params;
 
-    /* Monkey request: client_session & session_request */
+    /* Monkey request data: plugin, client_session & session_request */
+    struct plugin *plugin;
     struct client_session *cs;
     struct session_request *sr;
 
@@ -72,7 +72,6 @@ typedef struct duda_request {
 
 pthread_key_t duda_global_events_write;
 
-duda_global_t my_data_mem;
 
 void *duda_load_library(const char *path);
 void *duda_load_symbol(void *handle, const char *symbol);
