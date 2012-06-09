@@ -25,16 +25,38 @@
 #include <stdlib.h>
 #include "MKPlugin.h"
 
+/* Plugin events thread key */
+pthread_key_t duda_package_event_k;
+
 struct duda_package {
     char *name;
     char *version;
 
     void *api;
+    
+    /* mk_list */
+    struct mk_list _head;
 };
 
-/* Reference the core Monkey API */
-struct plugin_api *mk_api;
-#define duda_package_init() mk_api = *api;
+struct package_event{
+    int socket;
+    struct duda_package *handler;
+    
+    /* mk_list */
+    struct mk_list _head;
+};
+
+/* Package events interface */
+int duda_package_event_add(int socket, int mode,
+                        struct plugin *handler,
+                        struct client_session *cs,
+                        struct session_request *sr,
+                        int behavior);
+int duda_package_event_del(int socket);
+
+/* Reference the duda API */
+struct duda_api_objects *duda_api;
+#define duda_package_init() duda_api = duda_api_master();
 
 /* Data type */
 typedef struct duda_package duda_package_t;

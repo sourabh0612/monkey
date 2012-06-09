@@ -75,15 +75,59 @@ int duda_event_is_registered_write(duda_request_t *dr)
     return MK_FALSE;
 }
 
+struct package_event *duda_package_event_get(int socket)
+{
+    struct mk_list *head, *list;
+    struct package_event *node;
+
+    list = duda_package_event_get_list();
+
+    if (!list) {
+        return NULL;
+    }
+
+    mk_list_foreach(head, list) {
+        node = mk_list_entry(head, struct package_event, _head);
+        if (node->socket == socket) {
+            return node;
+        }
+    }
+
+    return NULL;
+}
+
+
 int duda_event_write_callback(int sockfd)
 {
+	int ret;
+    struct duda_package *node;
+    struct mk_list *head;
+    struct package_event *event;
+
+    MK_TRACE("[FD %i] Package event write", socket);
+
+    event = duda_package_event_get(socket);
+    if (event) {
+        if (event->handler->event_write) {
+            MK_TRACE(" event write handled by package");
+
+            ret = event->handler->event_write(socket);
+            /* TODO: change this to package level */
+            //mk_plugin_event_check_return("write|handled_by", ret);
+            return ret;
+        }
+    }
+
+    printf("inside callback %d\n",sockfd);
     int ret = MK_PLUGIN_RET_CONTINUE;
     struct mk_list *list, *temp, *head;
     duda_request_t *entry;
 
     list = pthread_getspecific(duda_global_events_write);
+    printf("list %p\n",list);
     mk_list_foreach_safe(head, temp, list) {
         entry = mk_list_entry(head, duda_request_t, _head_events_write);
+        printf("id:%d\n",entry->cs->socket);
         if (entry->cs->socket == sockfd) {
             ret = duda_queue_flush(entry);
 

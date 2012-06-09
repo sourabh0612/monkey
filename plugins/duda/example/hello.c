@@ -45,7 +45,7 @@ void cb_end(duda_request_t *dr)
 void connectCallback(const redisAsyncContext *c, int status) {
     if (status != REDIS_OK) {
         printf("Error: %s\n", c->errstr);
-        return;
+        exit(1);
     }
     printf("Connected...\n");
 }
@@ -58,6 +58,13 @@ void disconnectCallback(const redisAsyncContext *c, int status) {
     printf("Disconnected...\n");
 }
 
+void getCallback(redisAsyncContext *c, void *r, void *privdata) {
+    redisReply *reply = r;
+    if (reply == NULL) return;
+    printf("argv[%s]: %s\n", (char*)privdata, reply->str);
+    redis->disconnect(rc);
+}
+
 void cb_hello_world(duda_request_t *dr)
 {
     response->http_status(dr, 200);
@@ -66,11 +73,18 @@ void cb_hello_world(duda_request_t *dr)
     response->body_print(dr, "hello world!\n", 13);
     
     redisAsyncContext *rc = redis->connect("127.0.0.1", 6379);
+    printf("1\n");
     redis->attach(rc,dr);
+    printf("2\n");
     redis->setConnectCallback(rc,connectCallback);
+    printf("3\n");
     redis->setDisconnectCallback(rc, disconnectCallback);
-    redis->command(rc, NULL, NULL, "SET key 15");
-    redis->disconnect(rc);
+    printf("4\n");
+//    redis->command(rc, getCallback, (char*)"end-1", "GET key");
+    redis->command(rc, getCallback, (char*)"end-1", "SET key 0612");
+    printf("5\n");
+   
+    printf("6\n");
     //redis->listen(max_events);
     response->end(dr, cb_end);
 }

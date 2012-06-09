@@ -169,6 +169,7 @@ int body_printf(duda_request_t *dr, const char *format, ...)
 
 int sendfile_enqueue(duda_request_t *dr, char *path)
 {
+	printf("file enqueued\n");
     struct duda_sendfile *sf;
     struct duda_queue_item *item;
 
@@ -188,6 +189,7 @@ int sendfile_enqueue(duda_request_t *dr, char *path)
 /* Finalize the response process */
 int end_response(duda_request_t *dr, void (*end_cb) (duda_request_t *))
 {
+	printf("inside end_response\n");
     int ret;
 
     dr->end_callback = end_cb;
@@ -214,6 +216,7 @@ struct duda_api_objects *duda_api_master()
     objs->response = mk_api->mem_alloc(sizeof(struct duda_api_response));
     objs->debug    = mk_api->mem_alloc(sizeof(struct duda_api_debug));
     objs->global   = mk_api->mem_alloc(sizeof(struct duda_api_global));
+    objs->event    = mk_api->mem_alloc(sizeof(struct duda_api_event));
 
     /* MAP Duda calls */
     objs->duda->package_load = duda_package_load;
@@ -251,6 +254,10 @@ struct duda_api_objects *duda_api_master()
     /* Global data (thread scope) */
     objs->global->set  = duda_global_set;
     objs->global->get  = duda_global_get;
+    
+    /* Event Objects */
+    objs->event->event_add = duda_package_event_add;
+    objs->event->event_del = duda_package_event_del;
 
     /* FIXME - DEBUG object */
 #ifdef DEBUG

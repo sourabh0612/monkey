@@ -39,6 +39,8 @@ typedef void * duda_callback_t;
 struct duda_webservice {
     char *app_name;
     char *app_path;
+    
+    struct mk_list packages;
 };
 
 /* Interfaces of the web service */
@@ -176,6 +178,12 @@ struct duda_api_global {
     void *(*get)  (duda_global_t);
 };
 
+struct  duda_api_event {
+    int (*event_add) (int, int, struct plugin *, struct client_session *,
+                      struct session_request *, int);
+    int (*event_del) (int);
+};
+
 /*
  * Group all objects in one struct so we can pass this memory space
  * to the web service when it's loaded, then the webservice.h macros
@@ -194,6 +202,7 @@ struct duda_api_objects {
     struct duda_api_session *session;
     struct duda_api_cookie *cookie;
     struct duda_api_xtime *xtime;
+    struct duda_api_event *event;
 };
 
 struct duda_api_objects *duda_api_master();

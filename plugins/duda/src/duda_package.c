@@ -62,8 +62,22 @@ duda_package_t *duda_package_load(const char *pkgname)
         exit(EXIT_FAILURE);
     }
 
-    package_info = package_main(&mk_api);
+    package_info = package_main(&duda_api);
+    
+    mk_list_add(package_info->_head, &_duda_packages);
+    
+    
     mk_api->mem_free(package);
 
     return package_info;
+}
+
+static int duda_package_event_set_list(struct mk_list *list)
+{
+    return pthread_setspecific(duda_package_event_k, (void *) list);
+}
+
+static struct mk_list *duda_package_event_get_list()
+{
+    return pthread_getspecific(duda_package_event_k);
 }

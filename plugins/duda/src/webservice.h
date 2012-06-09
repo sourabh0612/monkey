@@ -39,6 +39,7 @@
 
 struct duda_webservice ws;
 struct mk_list _duda_interfaces;
+struct mk_list _duda_packages;
 struct mk_list _duda_global_dist;
 
 /* Objects exported to the web service */
@@ -56,7 +57,7 @@ struct duda_api_xtime *xtime;
 duda_package_t *pkg_temp;
 
 /* Duda Macros */
-#define DUDA_REGISTER(app_name, app_path) struct duda_webservice ws = {app_name, app_path}
+#define DUDA_REGISTER(app_name, app_path) struct duda_webservice ws = {app_name, app_path, NULL}
 
 #define duda_load_package(object, package)          \
     pkg_temp = api->duda->package_load(package);    \
@@ -75,6 +76,7 @@ duda_package_t *pkg_temp;
     global   = api->global;                                             \
     xtime    = api->xtime;                                              \
     mk_list_init(&_duda_interfaces);                                    \
+    mk_list_init(&_duda_packages);                                      \
     mk_list_init(&_duda_global_dist);
 
 #define duda_global_init(key_t, cb) do {                                \

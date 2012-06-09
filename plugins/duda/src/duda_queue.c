@@ -110,6 +110,7 @@ int duda_queue_flush(duda_request_t *dr)
         is_registered = duda_event_is_registered_write(dr);
         queue_len = duda_queue_length(&dr->queue_out);
 
+        printf("queue_len:%d %d\n",queue_len, is_registered);
         if (queue_len > 0 && is_registered == MK_FALSE) {
             duda_event_register_write(dr);
         }

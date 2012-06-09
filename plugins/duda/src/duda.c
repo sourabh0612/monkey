@@ -185,7 +185,13 @@ void duda_mem_init()
 
 int _mkp_event_write(int sockfd)
 {
-    return duda_event_write_callback(sockfd);
+	return duda_event_write_callback(sockfd);
+}
+
+int _mkp_event_read(int sockfd)
+{
+    printf("inside duda\n");
+    return 1;
 }
 
 void _mkp_core_prctx(struct server_config *config)
@@ -246,6 +252,8 @@ int _mkp_init(void **api, char *confdir)
 
     /* Global data / Thread scope */
     pthread_key_create(&duda_global_events_write, NULL);
+
+    pthread_key_create(&duda_package_event_k, NULL);
     return 0;
 }
 
