@@ -23,44 +23,36 @@
 #define DUDA_PACKAGE_H
 
 #include <stdlib.h>
-#include "MKPlugin.h"
 
-/* Plugin events thread key */
-pthread_key_t duda_package_event_k;
+#include "MKPlugin.h"
+#include "duda_objects.h"
+#include "duda_api.h"
 
 struct duda_package {
     char *name;
     char *version;
 
     void *api;
-    
-    /* mk_list */
-    struct mk_list _head;
 };
 
-struct package_event{
-    int socket;
-    struct duda_package *handler;
-    
-    /* mk_list */
-    struct mk_list _head;
-};
-
-/* Package events interface */
-int duda_package_event_add(int socket, int mode,
-                        struct plugin *handler,
-                        struct client_session *cs,
-                        struct session_request *sr,
-                        int behavior);
-int duda_package_event_del(int socket);
-
-/* Reference the duda API */
-struct duda_api_objects *duda_api;
-#define duda_package_init() duda_api = duda_api_master();
+/* Reference and set Duda API object */
+#define duda_package_init()                                             \
+    event    = api->event;                                              \
+    monkey   = api->monkey;                                             \
+    map      = api->map;                                                \
+    msg      = api->msg;                                                \
+    response = api->response;                                           \
+    debug    = api->debug;                                              \
+    console  = api->console;                                            \
+    param    = api->param;                                              \
+    session  = api->session;                                            \
+    cookie   = api->cookie;                                             \
+    global   = api->global;                                             \
+    xtime    = api->xtime;                                              \
 
 /* Data type */
 typedef struct duda_package duda_package_t;
 
 /* Define package loader */
-duda_package_t *duda_package_load(const char *pkgname);
+duda_package_t *duda_package_load(const char *pkgname, struct duda_api_objects *api);
 #endif

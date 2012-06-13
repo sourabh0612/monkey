@@ -36,31 +36,18 @@
 #include "duda_cookie.h"
 #include "duda_xtime.h"
 #include "duda_console.h"
+#include "duda_objects.h"
 
 struct duda_webservice ws;
 struct mk_list _duda_interfaces;
-struct mk_list _duda_packages;
 struct mk_list _duda_global_dist;
-
-/* Objects exported to the web service */
-struct plugin_api *monkey;
-struct duda_api_map *map;
-struct duda_api_msg *msg;
-struct duda_api_response *response;
-struct duda_api_debug *debug;
-struct duda_api_console *console;
-struct duda_api_param *param;
-struct duda_api_session *session;
-struct duda_api_cookie *cookie;
-struct duda_api_global *global;
-struct duda_api_xtime *xtime;
 duda_package_t *pkg_temp;
 
 /* Duda Macros */
-#define DUDA_REGISTER(app_name, app_path) struct duda_webservice ws = {app_name, app_path, NULL}
+#define DUDA_REGISTER(app_name, app_path) struct duda_webservice ws = {app_name, app_path}
 
-#define duda_load_package(object, package)          \
-    pkg_temp = api->duda->package_load(package);    \
+#define duda_load_package(object, package)              \
+    pkg_temp = api->duda->package_load(package, api);   \
     object = pkg_temp->api;
 
 #define duda_service_init()                                             \
@@ -69,6 +56,7 @@ duda_package_t *pkg_temp;
     msg      = api->msg;                                                \
     response = api->response;                                           \
     debug    = api->debug;                                              \
+    event    = api->event;                                              \
     console  = api->console;                                            \
     param    = api->param;                                              \
     session  = api->session;                                            \
@@ -76,7 +64,6 @@ duda_package_t *pkg_temp;
     global   = api->global;                                             \
     xtime    = api->xtime;                                              \
     mk_list_init(&_duda_interfaces);                                    \
-    mk_list_init(&_duda_packages);                                      \
     mk_list_init(&_duda_global_dist);
 
 #define duda_global_init(key_t, cb) do {                                \

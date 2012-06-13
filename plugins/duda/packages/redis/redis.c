@@ -5,11 +5,10 @@
 #include "async.h"
 #include "duda_api.h"
 #include "redis.h"
-#include "MKPlugin.h"
 
-void mk_redis_read(int fd)
+int redis_read(int fd, struct duda_request *dr)
 {
-    MK_TRACE("[FD %i] Connection Handler / read", fd);
+    printf("[FD %i] Redis Handler / read\n", fd);
     struct mk_list *list_redis_fd,*head;
     duda_redis_t *dr_entry;
     redisAsyncContext *rc;
@@ -23,14 +22,15 @@ void mk_redis_read(int fd)
         }
     }
     if(rc == NULL)
-        MK_TRACE("Error");
+        printf("Error\n");
     else
         redisAsyncHandleRead(rc);
+    return 1;
 }
 
-void mk_redis_write(int fd)
+int redis_write(int fd, struct duda_request *dr)
 {
-    MK_TRACE("[FD %i] Connection Handler / write", fd);
+    printf("[FD %i] Redis Handler / write\n", fd);
     struct mk_list *list_redis_fd,*head;
     duda_redis_t *dr_entry;
     redisAsyncContext *rc;
@@ -44,14 +44,15 @@ void mk_redis_write(int fd)
         }
     }
     if(rc == NULL)
-        MK_TRACE("Error");
+        printf("Error\n");
     else
         redisAsyncHandleWrite(rc);
+    return 1;
 }
 
-void mk_redis_error(int fd)
+int redis_error(int fd, struct duda_request *dr)
 {
-    MK_TRACE("[FD %i] Connection Handler / error", fd);
+    printf("[FD %i] Redis Handler / error\n", fd);
     struct mk_list *list_redis_fd,*head;
     duda_redis_t *dr_entry;
     redisAsyncContext *rc;
@@ -65,14 +66,15 @@ void mk_redis_error(int fd)
         }
     }
     if(rc == NULL)
-        MK_TRACE("Error");
+        printf("Error\n");
     else
         redisDel(rc);
+    return 1;
 }
 
-void mk_redis_close(int fd)
+int redis_close(int fd, struct duda_request *dr)
 {
-    MK_TRACE("[FD %i] Connection Handler / close", fd);
+    printf("[FD %i] Redis Handler / close\n", fd);
     struct mk_list *list_redis_fd,*head;
     duda_redis_t *dr_entry;
     list_redis_fd = pthread_getspecific(redis_key);
@@ -85,11 +87,14 @@ void mk_redis_close(int fd)
             break;
         }
     }
+    return 1;
 }
 
-void mk_redis_timeout(int fd)
+int redis_timeout(int fd, struct duda_request *dr)
 {
-    MK_TRACE("[FD %i] Connection Handler / timeout", fd);
+    printf("[FD %i] Redis Handler / timeout\n", fd);
+    
+    return 1;
 
 }
 
@@ -102,9 +107,9 @@ redisAsyncContext * redis_connect(const char *ip, int port)
         printf("REDIS: Can't connect: %s\n", c->errstr);
         exit(EXIT_FAILURE);
     }
-    dr = mk_api->mem_alloc(sizeof(duda_redis_t));
+    dr = monkey->mem_alloc(sizeof(duda_redis_t));
     dr->rc = c;
-    printf("in thread context redis : %p pid:%p\n",redis_key, (unsigned int)pthread_self());
+    
     list_redis_fd = pthread_getspecific(redis_key);
     if(list_redis_fd == NULL)
     {
@@ -113,69 +118,20 @@ redisAsyncContext * redis_connect(const char *ip, int port)
         pthread_setspecific(redis_key, (void *) list_redis_fd);    
     }
 
-    printf("list:%p, list->next:%p, list->prev:%p\n",list_redis_fd, list_redis_fd->next, list_redis_fd->prev);
     mk_list_add(&dr->_head_redis_fd, list_redis_fd);
     return c;
 }
 
 int redis_attach(redisAsyncContext *ac, duda_request_t *dr)
 {
-    redis_data_t *rd;
-    printf("mk_api: %p\n",mk_api);
-    rd = mk_api->mem_alloc(sizeof(redis_data_t));
-    
-    rd->rc = ac;
-    rd->dr = dr;
-
-    /* Nothing should be attached when something is already attached */
-    if (ac->ev.data != NULL)
-        return REDIS_ERR;
-
-    /* Register functions to start/stop listening for events */
-/*    ac->ev.addRead = redisAddRead;
-    ac->ev.delRead = redisDel;
-    ac->ev.addWrite = redisAddWrite;
-    ac->ev.delWrite = redisDel;
-    ac->ev.cleanup = redisDel;
-    ac->ev.data = rd;
-*/
-    mk_api->event_add(ac->c.fd, MK_EPOLL_RW, dr->plugin, dr->cs, dr->sr, 
-                      MK_EPOLL_LEVEL_TRIGGERED);
+    event->add(ac->c.fd, dr, redis_read, redis_write, redis_error, redis_close, redis_timeout);
 
     return REDIS_OK;
 
 }
 
-void redisAddRead(void *privdata) {
-    printf("In addread\n");
-    redis_data_t *rd = (redis_data_t *) privdata;
-    //redisAsyncHandleRead(rd->rc);
-    mk_api->event_add(rd->rc->c.fd, MK_EPOLL_READ, rd->dr->plugin,
-                           rd->dr->cs, rd->dr->sr, MK_EPOLL_LEVEL_TRIGGERED);
-   // duda_event_register_write(rd->dr);
-}
-
-void redisDel(void *privdata) {
-    printf("In del\n");
-    redis_data_t *rd = (redis_data_t *) privdata;
-    //mk_api->event_del(rd->rc->c.fd);
-}
-
-void redisAddWrite(void *privdata) {
-    printf("In addwrite\n");
-    redis_data_t *rd = (redis_data_t *) privdata;
-    printf("fd:%i\n",rd->rc->c.fd);
-    redisAsyncHandleWrite(rd->rc);
-    //mk_api->event_add(rd->rc->c.fd, MK_EPOLL_WRITE, rd->dr->plugin,
-    //                       rd->dr->cs, rd->dr->sr, MK_EPOLL_LEVEL_TRIGGERED);
-   // duda_event_register_write(rd->dr);
-}
-
 int redis_init(){
-    struct mk_list *list_redis_fd;
-
     pthread_key_create(&redis_key, NULL);
     
-    printf("in process context redis : %p pid:%p\n",redis_key, (unsigned int)pthread_self());
     return 1;
 }

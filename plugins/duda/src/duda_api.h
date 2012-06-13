@@ -24,9 +24,9 @@
 
 #include "mk_list.h"
 #include "duda.h"
+#include "duda_event.h"
 #include "duda_global.h"
 #include "duda_cookie.h"
-#include "duda_package.h"
 #include "duda_console.h"
 
 /* types of data */
@@ -39,8 +39,6 @@ typedef void * duda_callback_t;
 struct duda_webservice {
     char *app_name;
     char *app_path;
-    
-    struct mk_list packages;
 };
 
 /* Interfaces of the web service */
@@ -124,11 +122,6 @@ struct duda_param {
 /* MONKEY object: monkey->x() */
 struct plugin_api *monkey;
 
-/* MAP specific Duda calls */
-struct duda_api_main {
-    duda_package_t *(*package_load) (const char *);
-};
-
 /* MAP object: map->x() */
 struct duda_api_map {
     /* interface_ */
@@ -178,12 +171,6 @@ struct duda_api_global {
     void *(*get)  (duda_global_t);
 };
 
-struct  duda_api_event {
-    int (*event_add) (int, int, struct plugin *, struct client_session *,
-                      struct session_request *, int);
-    int (*event_del) (int);
-};
-
 /*
  * Group all objects in one struct so we can pass this memory space
  * to the web service when it's loaded, then the webservice.h macros
@@ -196,16 +183,22 @@ struct duda_api_objects {
     struct duda_api_msg *msg;
     struct duda_api_response *response;
     struct duda_api_debug *debug;
+    struct duda_api_event *event;
     struct duda_api_console *console;
     struct duda_api_global *global;
     struct duda_api_param *param;
     struct duda_api_session *session;
     struct duda_api_cookie *cookie;
     struct duda_api_xtime *xtime;
-    struct duda_api_event *event;
 };
 
 struct duda_api_objects *duda_api_master();
+
+/* MAP specific Duda calls */
+struct duda_api_main {
+    struct duda_package *(*package_load) (const char *, struct duda_api_objects *);
+};
+
 
 int http_status(duda_request_t *dr, int status);
 int http_header(duda_request_t *dr, char *row, int len);

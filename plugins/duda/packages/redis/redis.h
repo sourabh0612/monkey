@@ -3,18 +3,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include<pthread.h>
+#include <pthread.h>
 
 #include "hiredis.h"
 #include "async.h"
 #include "duda_api.h"
+#include "webservice.h"
 
 pthread_key_t redis_key;
-
-typedef struct redis_data {
-    redisAsyncContext *rc;
-    duda_request_t *dr;
-} redis_data_t;
 
 typedef struct duda_redis {
     
@@ -51,10 +47,10 @@ void redisAddRead(void *privdata);
 void redisDel(void *privdata);
 void redisAddWrite(void *privdata);
 
-void mk_redis_read(int fd);
-void mk_redis_write(int fd);
-void mk_redis_error(int fd);
-void mk_redis_close(int fd);
-void mk_redis_timeout(int fd);
+int redis_read(int fd, struct duda_request *dr);
+int redis_write(int fd, struct duda_request *dr);
+int redis_error(int fd, struct duda_request *dr);
+int redis_close(int fd, struct duda_request *dr);
+int redis_timeout(int fd, struct duda_request *dr);
 
 #endif
