@@ -32,7 +32,7 @@ struct duda_api_redis {
                                   void (*)(const redisAsyncContext *, int));
     int (*command) (redisAsyncContext *, 
                     void (*) (redisAsyncContext*, void*, void*), void *, 
-                    const char *);
+                    const char *,...);
 };
 
 typedef struct duda_api_redis redis_object_t;
