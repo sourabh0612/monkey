@@ -11,7 +11,7 @@ int redis_read(int fd, struct duda_request *dr)
     printf("[FD %i] Redis Handler / read\n", fd);
     struct mk_list *list_redis_fd,*head;
     duda_redis_t *dr_entry;
-    redisAsyncContext *rc;
+    redisAsyncContext *rc=NULL;
     list_redis_fd = pthread_getspecific(redis_key);
 
     mk_list_foreach(head, list_redis_fd) {
@@ -33,7 +33,7 @@ int redis_write(int fd, struct duda_request *dr)
     printf("[FD %i] Redis Handler / write\n", fd);
     struct mk_list *list_redis_fd,*head;
     duda_redis_t *dr_entry;
-    redisAsyncContext *rc;
+    redisAsyncContext *rc=NULL;
     list_redis_fd = pthread_getspecific(redis_key);
 
     mk_list_foreach(head, list_redis_fd) {
@@ -55,7 +55,7 @@ int redis_error(int fd, struct duda_request *dr)
     printf("[FD %i] Redis Handler / error\n", fd);
     struct mk_list *list_redis_fd,*head;
     duda_redis_t *dr_entry;
-    redisAsyncContext *rc;
+    redisAsyncContext *rc=NULL;
     list_redis_fd = pthread_getspecific(redis_key);
 
     mk_list_foreach(head, list_redis_fd) {
@@ -75,11 +75,11 @@ int redis_error(int fd, struct duda_request *dr)
 int redis_close(int fd, struct duda_request *dr)
 {
     printf("[FD %i] Redis Handler / close\n", fd);
-    struct mk_list *list_redis_fd,*head;
+    struct mk_list *list_redis_fd,*head, *tmp;
     duda_redis_t *dr_entry;
     list_redis_fd = pthread_getspecific(redis_key);
 
-    mk_list_foreach(head, list_redis_fd) {
+    mk_list_foreach_safe(head, tmp, list_redis_fd) {
         dr_entry = mk_list_entry(head, duda_redis_t, _head_redis_fd);
         if(dr_entry->rc->c.fd == fd){
             mk_list_del(&dr_entry->_head_redis_fd);
